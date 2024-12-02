@@ -1,1 +1,1 @@
-# collection-scripts
+# collection scripts
