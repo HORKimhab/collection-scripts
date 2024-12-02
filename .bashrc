@@ -131,7 +131,8 @@ alias cleanall='apt clean && apt autoremove --purge'
 alias update='apt update'
 alias upgrade='apt upgrade'
 # Set highlight background only for echo content
-alias updateall='echo -e "\033[43m------Update and Upgrade system------\033[0m" && update && upgrade'
+alias udug='echo -e "\033[43m------Update and Upgrade system: --->"update-upgrade"------\033[0m" && update && upgrade'
+alias update-upgrade='echo -e "\033[43m------Update and Upgrade system: --->Shorthand: "udug" ------\033[0m" && update && upgrade'
 
 # Upgrade only
 alias upgradeonly='update && install --only-upgrade'
