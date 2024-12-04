@@ -129,10 +129,8 @@ alias install='update && apt install'
 alias python='python3'
 alias cleanall='apt clean && apt autoremove --purge'
 alias update='apt update'
-alias upgrade='apt upgrade'
 # Set highlight background only for echo content
-alias udug='echo -e "\033[43m------Update and Upgrade system: --->"update-upgrade"------\033[0m" && update && upgrade'
-alias update-upgrade='echo -e "\033[43m------Update and Upgrade system: --->Shorthand: "udug" ------\033[0m" && update && upgrade'
+alias upgrade='echo -e "\033[43m------Update and Upgrade system------\033[0m" && update && apt upgrade'
 
 # Upgrade only
 alias upgradeonly='update && install --only-upgrade'
