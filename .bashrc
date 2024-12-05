@@ -149,7 +149,7 @@ nanobak() {
     read -r response
     if [[ "$response" == y* || "$response" == Y* ]]; then
       # Create the new file and add content
-      echo "This is a new file" | sudo tee "$1" >/dev/null
+      echo "#This is a new file" | sudo tee "$1" >/dev/null
       sudo nano $1
       return 1
     else
@@ -158,12 +158,6 @@ nanobak() {
     fi
   fi
 
-  # Get the current date in the same format as the backup filename
-  datetime=$(date +'%Y-%b-%d_%H-%M-%S')
-
-  # Define the backup file name pattern
-  backup_file="$1.$datetime.bak"
-
   # Get the directory of the file
   dir=$(dirname "$1")
 
@@ -171,6 +165,6 @@ nanobak() {
   find "$dir" -type f -name "$(basename "$1").*bak" -mtime +0 -exec sudo rm {} \;
 
   # Create the new backup and open the file with nano
-  sudo cp "$1" "$backup_file" && sudo nano "$1"
+  sudo cp "$1"{,.$datetime.bak} && sudo nano "$1"
 }
 # ----------------------------- Append or Customize ---------------------------------------------------
