@@ -137,6 +137,7 @@ alias upgradeonly='update && install --only-upgrade'
 # Backup and Nano file
 # Function to create a backup and open a file with nano
 nanobak() {
+  local file="$1"
   # if [ ! -f "$1" ]; then
   #   echo "$1 is not valid file (or path). Please enter valid a file."
   #   return 1
@@ -159,12 +160,56 @@ nanobak() {
   fi
 
   # Get the directory of the file
-  dir=$(dirname "$1")
+  # dir=$(dirname "$1")
 
   # Delete backup files that are older than today in the same directory
-  find "$dir" -type f -name "$(basename "$1").*bak" -mtime +0 -exec sudo rm {} \;
+  # find "$dir" -type f -name "$(basename "$1").*bak" -mtime +0 -exec sudo rm {} \;
 
   # Create the new backup and open the file with nano
-  sudo cp "$1"{,.$datetime.bak} && sudo nano "$1"
+  # sudo cp "$1"{,.$datetime.bak} && sudo nano "$1"
+
+  backup_file "$file" && sudo nano "$file"
+}
+
+# Backup before truncate file
+emptyfile() {
+  backup_file "$1" "true"
+  # if backup_file return 1, execute other command
+  if [[ $? -ne 0 ]]; then
+    return 1
+  fi
+
+  sudo truncate -s 0 "$1" # truncate -s 0 $1 |  empty file
+  echo "#'File $1' has been empty..." | sudo tee "$1" >/dev/null
+  sudo nano $1
+}
+
+# Function hight file
+highlight_file() {
+  local fileName="$1"
+  echo -e "\033[43m$fileName\033[0m"
+}
+
+# use: backup_file "fileName" "true"
+backup_file() {
+  local file="$1"
+  local isCheck="${2:-false}" # Default value for isCheck is 'false'
+
+  # Check if the file exists
+  if [[ ! -f "$file" && "$isCheck" == "true" ]]; then
+    echo -e "$(highlight_file "$file") file is not found."
+    return 1
+  fi
+
+  local dir
+  dir=$(dirname "$file")
+  local basename
+  basename=$(basename "$file")
+
+  # Delete backup files older than one day
+  find "$dir" -type f -name "$basename.*bak" -mtime +0 -exec sudo rm {} \;
+
+  # Perform or simulate backup
+  sudo cp "$1"{,.$datetime.bak}
 }
 # ----------------------------- Append or Customize ---------------------------------------------------
