@@ -132,7 +132,22 @@ alias update='apt update'
 alias upgrade='echo -e "\033[43m------Update and Upgrade system------\033[0m" && update && apt upgrade'
 
 # Upgrade only
-alias upgradeonly='update && install --only-upgrade'
+# alias upgradeonly='update && install --only-upgrade'
+upgradeonly() {
+  local file="$1"
+  if [ -z "$file" ]; then
+    echo "Package name is required."
+    return 1
+  fi
+
+  # Verify if the package exists
+  if ! apt-cache show "$file" >/dev/null 2>&1; then
+    echo -e "Error: Package $(highlight_file "$file") is not found. Please input a valid package name."
+    return 1
+  fi
+
+  install --only-upgrade "$file"
+}
 
 for cmd in start stop restart enable reload status; do
   # Dynamically create a function to call systemctl
@@ -185,14 +200,14 @@ emptyfile() {
   fi
 
   sudo truncate -s 0 "$1" # truncate -s 0 $1 |  empty file
-  echo "#'File $1' has been empty..." | sudo tee "$1" >/dev/null
+  echo " #'File $1' has been empty..." | sudo tee "$1" >/dev/null
   sudo nano $1
 }
 
 # Function hight file
 highlight_file() {
   local fileName="$1"
-  echo -e "\033[43m$fileName\033[0m"
+  echo "\033[43m$fileName\033[0m"
 }
 
 # use: backup_file "fileName" "true"
