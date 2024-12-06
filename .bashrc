@@ -134,6 +134,11 @@ alias upgrade='echo -e "\033[43m------Update and Upgrade system------\033[0m" &&
 # Upgrade only
 alias upgradeonly='update && install --only-upgrade'
 
+for cmd in start stop restart enable reload status; do
+  # Dynamically create a function to call systemctl
+  eval "$cmd() { sudo systemctl $cmd \$@; }"
+done
+
 # Backup and Nano file
 # Function to create a backup and open a file with nano
 nanobak() {
