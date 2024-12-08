@@ -227,7 +227,7 @@ backup_file() {
   basename=$(basename "$file")
 
   # Delete backup files older than one day
-  find "$dir" -type f -name "$basename.*bak" -mtime +0 -exec sudo rm {} \;
+  sudo find "$dir" -type f -name "$basename.*bak" -mtime +0 -exec sudo rm {} \;
 
   # Perform or simulate backup
   sudo cp "$1"{,.$datetime.bak}
