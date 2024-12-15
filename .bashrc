@@ -212,6 +212,7 @@ highlight_file() {
 
 # use: backup_file "fileName" "true"
 backup_file() {
+  local datetime_bf=$(date +'%Y-%b-%d_%H-%M-%S')
   local file="$1"
   local isCheck="${2:-false}" # Default value for isCheck is 'false'
 
@@ -227,9 +228,11 @@ backup_file() {
   basename=$(basename "$file")
 
   # Delete backup files older than one day
-  sudo find "$dir" -type f -name "$basename.*bak" -mtime +0 -exec sudo rm {} \;
+  # TODO comment below to improve performance
+  # sudo find "$dir" -type f -name "$basename.*bak" -mtime +0 -exec sudo rm {} \; // slow
+  sudo find "$dir" -type f -name "$basename.*bak" -mtime +0 -print0 | xargs -0 -r sudo rm
 
   # Perform or simulate backup
-  sudo cp "$1"{,.$datetime.bak}
+  sudo cp "$1"{,.$datetime_bf.bak}
 }
 # ----------------------------- Append or Customize ---------------------------------------------------
