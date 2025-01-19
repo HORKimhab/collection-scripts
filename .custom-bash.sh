@@ -11,7 +11,6 @@ alias update='apt update'
 # Set highlight background only for echo content
 alias upgrade='echo -e "\033[43m------Update and Upgrade system------\n------ upgrade: sudo apt update && sudo apt upgrade -y ------\033[0m" && update && apt upgrade -y'
 
-
 # Upgrade only
 # alias upgradeonly='update && install --only-upgrade'
 upgradeonly() {
@@ -111,8 +110,31 @@ backup_file() {
   # Delete backup files older than one day
   # TODO comment below to improve performance
   # sudo find "$dir" -type f -name "$basename.*bak" -mtime +0 -exec sudo rm {} \; // slow
-  sudo find "$dir" -type f -name "$basename.*bak" -mtime +0 -print0 | xargs -0 -r sudo rm
+  # Comment below cos it's slow
+  # sudo find "$dir" -type f -name "$basename.*bak" -mtime +0 -print0 | xargs -0 -r sudo rm
 
   # Perform or simulate backup
   sudo cp "$1"{,.$datetime_bf.bak}
 }
+
+# Example of 'print_with_dashes'
+# ----------------------------------------------------------------------------------------
+# This is the default message of the print_with_dashes function. Please verify your usage.
+print_with_dashes() {
+  # If no message is provided, use the default message
+  local message="${1:-This is the default message of the print_with_dashes function. Please verify your usage.}"
+
+  # Get the length of the message
+  length=${#message}
+
+  # Print dashes equal to the length of the message
+  for ((i = 0; i < length; i++)); do
+    echo -n "-"
+  done
+  echo # Move to the next line after printing dashes
+
+  # Print the actual message
+  echo "$message"
+}
+# Export function to use outside
+export -f print_with_dashes
