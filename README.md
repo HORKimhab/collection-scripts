@@ -15,6 +15,18 @@ echo -e "\n# ----------------------------- Append or Customize -----------------
 source .bashrc
 ```
 
+## Install postman without third party or apt 
+```bash
+curl -o ~/install-postman-without-third-party.sh \
+    https://raw.githubusercontent.com/HORKimhab/collection-scripts/main/install-postman-without-third-party.sh
+sudo chmod +x ~/install-postman-without-third-party.sh
+```
+
+```bash
+# Run it
+bash ~/install-postman-without-third-party.sh
+```
+
 ## TODO
 
 - Use fish and separate append alias to one file, use it with 'include'
