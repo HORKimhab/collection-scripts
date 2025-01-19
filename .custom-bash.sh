@@ -6,7 +6,7 @@ datetime=$(date +'%Y-%b-%d_%H-%M-%S')
 alias apt='sudo apt'
 alias install='update && apt install'
 alias python='python3'
-alias cleanall='apt clean && apt autoremove --purge'
+alias cleanall='apt autoclean && apt autoremove --purge'
 alias update='apt update'
 # Set highlight background only for echo content
 alias upgrade='echo -e "\033[43m------Update and Upgrade system------\n------ upgrade: sudo apt update && sudo apt upgrade -y ------\033[0m" && update && apt upgrade -y'
