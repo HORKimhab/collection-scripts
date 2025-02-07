@@ -39,3 +39,18 @@ bash ~/install-postman-without-third-party.sh
 ### Ubuntu command
 
 - remove alias: `unalias ${alias_name}`
+
+### Install after list upgrade
+
+```bash
+upgradable=$(sudo apt list --upgradable 2>/dev/null | awk -F/ 'NR>1 {print $1}')
+if [ -n "$upgradable" ]; then
+    echo "Upgrading: $upgradable"
+    echo "$upgradable" | xargs sudo apt install -y
+else
+    echo "No packages to upgrade."
+fi
+```
+
+
+
