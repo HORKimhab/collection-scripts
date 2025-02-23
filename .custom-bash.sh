@@ -9,7 +9,7 @@ alias python='python3'
 alias cleanall='apt autoclean && apt autoremove --purge'
 alias update='apt update'
 # Set highlight background only for echo content
-alias upgrade='echo -e "\033[43m------Update and Upgrade system------\n------ upgrade: sudo apt update && sudo apt upgrade -y ------\033[0m" && update && apt upgrade -y'
+alias upgrade='echo -e "\033[43m------ Update and Upgrade system ------\033[0m\n\033[43m------ Running: sudo apt update && sudo apt upgrade -y && "upgrade_packages"------\033[0m" && update && apt upgrade -y && upgrade_packages'
 
 # Upgrade only
 # alias upgradeonly='update && install --only-upgrade'
@@ -85,6 +85,7 @@ emptyfile() {
 }
 
 # Function hight file
+# E.g: echo -e "$(highlight_file "Text will be highlight") file is not found."
 highlight_file() {
   local fileName="$1"
   echo "\033[43m$fileName\033[0m"
@@ -138,3 +139,15 @@ print_with_dashes() {
 }
 # Export function to use outside
 export -f print_with_dashes
+
+# Install 
+upgrade_packages(){
+  upgradable=$(apt list --upgradable 2>/dev/null | awk -F/ 'NR>1 {print $1}')
+
+    if [ -n "$upgradable" ]; then
+      local upgradable_syntax="upgrade_packages: apt list --upgradable 2>/dev/null | awk -F/ 'NR>1 {print $1}'"
+      # echo -e "$(highlight_file "$upgradable_syntax")"
+      echo -e "$(print_with_dashes "$(highlight_file "$upgradable_syntax")")"
+      # echo "$upgradable" | xargs apt install -y
+    fi
+}

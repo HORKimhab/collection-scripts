@@ -1,6 +1,7 @@
 {
   "[shellscript]": {
-    "editor.tabSize": 2
+    "editor.tabSize": 2,
+    "editor.defaultFormatter": "foxundermoon.shell-format"
   },
   "editor.formatOnSave": true,  
 }
