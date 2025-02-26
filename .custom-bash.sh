@@ -145,9 +145,9 @@ upgrade_packages(){
   upgradable=$(apt list --upgradable 2>/dev/null | awk -F/ 'NR>1 {print $1}')
 
     if [ -n "$upgradable" ]; then
-      local upgradable_syntax="upgrade_packages: apt list --upgradable 2>/dev/null | awk -F/ 'NR>1 {print $1}'"
+      local upgradable_syntax="upgrade_packages: apt list --upgradable 2>/dev/null | awk -F/ 'NR>1 {print $1}' | xargs sudo apt install -y"
       # echo -e "$(highlight_file "$upgradable_syntax")"
       echo -e "$(print_with_dashes "$(highlight_file "$upgradable_syntax")")"
-      echo "$upgradable" | xargs apt install -y
+      echo "$upgradable" | xargs sudo apt install -y
     fi
 }
