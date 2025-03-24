@@ -39,3 +39,7 @@ bash ~/install-postman-without-third-party.sh
 ### Ubuntu command
 
 - remove alias: `unalias ${alias_name}`
+
+### Test git on Window 
+
+- Hello Universe from #HKimhab
