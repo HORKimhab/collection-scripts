@@ -43,3 +43,4 @@ bash ~/install-postman-without-third-party.sh
 ### Test git on Window 
 
 - Hello Universe from #HKimhab
+- Hello Universe from Mac #HKimhab
