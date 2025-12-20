@@ -31,6 +31,7 @@ bash ~/install-postman-without-third-party.sh
 
 - Use fish and separate append alias to one file, use it with 'include'
 - `sudo find "$dir" -type f -name "$basename.*bak" -mtime +0 -print0 | xargs -0 -r sudo rm` is slow...
+- Install mysql via script: https://chatgpt.com/share/694617e7-6884-800b-bd3d-65997827355e 
 
 ### Naming convention
 
