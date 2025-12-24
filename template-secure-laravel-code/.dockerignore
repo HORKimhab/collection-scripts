@@ -1,0 +1,6 @@
+._*
+.DS_Store
+.git
+.gitignore
+node_modules
+vendor
