@@ -35,6 +35,15 @@ bash ~/install-postman-without-third-party.sh
 - `sudo find "$dir" -type f -name "$basename.*bak" -mtime +0 -print0 | xargs -0 -r sudo rm` is slow...
 - Install mysql via script: https://chatgpt.com/share/694617e7-6884-800b-bd3d-65997827355e
 
+```bash
+# Set auto
+# Start ssh-agent if not running
+  if [ -z "$SSH_AUTH_SOCK" ]; then
+  eval "$(ssh-agent -s)" >/dev/null
+  ssh-add /home/deploy/.ssh/rean-it-deploy >/dev/null 2>&1
+  fi
+```
+
 ### Naming convention
 
 - snake_case: e.g: `highlight_file`
