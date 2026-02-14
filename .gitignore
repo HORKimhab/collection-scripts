@@ -5,3 +5,4 @@ sync-telegram/*
 !sync-telegram/.gitkeep
 **/.telegram-sync-state
 all-store-telegram.txt
+telegram-sync-error.log

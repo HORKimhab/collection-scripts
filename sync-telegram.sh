@@ -22,6 +22,8 @@ Options:
 Environment variables:
   TELEGRAM_BOT_TOKEN
   TELEGRAM_CHAT_ID
+  TELEGRAM_API_BASE_URL    (optional, default: https://api.telegram.org)
+  TELEGRAM_FALLBACK_API_BASE_URL (optional, fallback on 413, example: http://127.0.0.1:8081)
   TELEGRAM_ENCRYPT_PASSWORD
   SECRET_45
   SECRET_SAME
@@ -31,6 +33,8 @@ Environment variables:
   SYNC_INCLUDE_HIDDEN       (optional: true/false, default: false)
   SYNC_MOVE_TO_TRASH        (optional: true/false, default: true)
   TRASH_DIR                 (optional, default: $HOME/.Trash)
+  TELEGRAM_LOG_ERRORS       (optional: true/false, default: true)
+  TELEGRAM_ERROR_LOG_FILE   (optional, default: <script_dir>/telegram-sync-error.log)
 HELP
 }
 
@@ -109,6 +113,34 @@ to_bool_or_default() {
   esac
 }
 
+build_bot_api_url() {
+  local base_url="$1"
+  local token="$2"
+
+  while [[ "$base_url" == */ ]]; do
+    base_url="${base_url%/}"
+  done
+
+  if [[ "$base_url" == */bot${token} ]]; then
+    printf '%s' "$base_url"
+  elif [[ "$base_url" == */bot ]]; then
+    printf '%s%s' "$base_url" "$token"
+  else
+    printf '%s/bot%s' "$base_url" "$token"
+  fi
+}
+
+log_message() {
+  local level="$1"
+  local message="$2"
+
+  if [[ "${LOG_ERRORS}" != "true" ]]; then
+    return 0
+  fi
+
+  printf '[%s] [%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$level" "$message" >> "$ERROR_LOG_FILE"
+}
+
 move_to_trash() {
   local file="$1"
   local base
@@ -140,30 +172,61 @@ send_to_telegram() {
   local caption="$2"
   local upload_name="${3:-}"
   local source_label="${4:-$upload_file}"
+  local current_api_url="$TELEGRAM_API_URL"
+  local current_base_url="$API_BASE_URL"
+  local switched_to_fallback="false"
   local attempt=1
   local response=""
   local curl_exit=1
   local retry_after=""
   local sleep_sec=0
+  local compact_response=""
 
   while [[ $attempt -le $MAX_RETRIES ]]; do
     if [[ -n "$upload_name" ]]; then
-      response="$(curl -sS -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
+      response="$(curl -sS -X POST "${current_api_url}/sendDocument" \
         -F "chat_id=${CHAT_ID}" \
         -F "caption=${caption}" \
         -F "document=@${upload_file};filename=${upload_name}" 2>&1)"
     else
-      response="$(curl -sS -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
+      response="$(curl -sS -X POST "${current_api_url}/sendDocument" \
         -F "chat_id=${CHAT_ID}" \
         -F "caption=${caption}" \
         -F "document=@${upload_file}" 2>&1)"
     fi
     curl_exit=$?
+    compact_response="${response//$'\n'/ }"
+    compact_response="${compact_response//$'\r'/ }"
 
     if [[ $curl_exit -eq 0 && "$response" == *'"ok":true'* ]]; then
       sleep "$SEND_DELAY_SEC"
       return 0
     fi
+
+    if [[ $curl_exit -eq 0 && "$response" == *'"error_code":413'* ]]; then
+      if [[ "$switched_to_fallback" == "false" && -n "${TELEGRAM_FALLBACK_API_URL:-}" ]]; then
+        echo "Detected 413 from ${current_base_url}; retrying via local tdlib Bot API server: ${FALLBACK_API_BASE_URL}" >&2
+        log_message "INFO" "switch_to_fallback_413 file=${source_label} from=${current_base_url} to=${FALLBACK_API_BASE_URL}"
+        current_api_url="$TELEGRAM_FALLBACK_API_URL"
+        current_base_url="$FALLBACK_API_BASE_URL"
+        switched_to_fallback="true"
+        continue
+      fi
+
+      if [[ "$API_BASE_URL" == "https://api.telegram.org" && -z "${TELEGRAM_FALLBACK_API_URL:-}" ]]; then
+        echo "Hint: Cloud Bot API upload limit reached. Set TELEGRAM_FALLBACK_API_BASE_URL to your tdlib local Bot API server (example: http://127.0.0.1:8081)." >&2
+      fi
+      compact_response="${response//$'\n'/ }"
+      compact_response="${compact_response//$'\r'/ }"
+      log_message "ERROR" "non_retryable_413 file=${source_label} api_base_url=${current_base_url} response=${compact_response}"
+      break
+    fi
+
+    if [[ $curl_exit -eq 7 && -n "${TELEGRAM_FALLBACK_API_URL:-}" && "$current_base_url" == "$FALLBACK_API_BASE_URL" ]]; then
+      echo "Local tdlib Bot API server is not reachable at ${FALLBACK_API_BASE_URL}. Start it with: docker compose -f ${SCRIPT_DIR}/docker-compose.telegram-bot-api.yml up -d" >&2
+    fi
+
+    log_message "WARN" "attempt=${attempt}/${MAX_RETRIES} file=${source_label} api_base_url=${current_base_url} curl_exit=${curl_exit} response=${compact_response}"
 
     retry_after="$(printf '%s' "$response" | sed -n 's/.*"retry_after"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' | head -n 1)"
     if [[ -n "$retry_after" ]]; then
@@ -174,6 +237,7 @@ send_to_telegram() {
 
     if [[ $attempt -lt $MAX_RETRIES ]]; then
       echo "Retry send (${attempt}/${MAX_RETRIES}) after ${sleep_sec}s" >&2
+      log_message "INFO" "retry file=${source_label} after=${sleep_sec}s"
       sleep "$sleep_sec"
     fi
 
@@ -182,6 +246,7 @@ send_to_telegram() {
 
   echo "Telegram send failed for: $source_label" >&2
   echo "Telegram response: $response" >&2
+  log_message "ERROR" "final_fail file=${source_label} curl_exit=${curl_exit} response=${compact_response}"
   return 1
 }
 
@@ -274,6 +339,8 @@ done
 
 BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-${BOT_TOKEN:-}}"
 CHAT_ID="${TELEGRAM_CHAT_ID:-${TELEGRAM_GROUP_CHAT_ID:-${CHAT_ID:-}}}"
+API_BASE_URL="${TELEGRAM_API_BASE_URL:-https://api.telegram.org}"
+FALLBACK_API_BASE_URL="${TELEGRAM_FALLBACK_API_BASE_URL:-}"
 PART_A="${TELEGRAM_ENCRYPT_PASSWORD:-}"
 PART_B="${SECRET_45:-}"
 PART_C="${SECRET_SAME:-}"
@@ -284,6 +351,8 @@ RETRY_BASE_SEC="$(to_positive_int_or_default "${TELEGRAM_RETRY_BASE_SEC:-2}" 2)"
 SYNC_INCLUDE_HIDDEN="${SYNC_INCLUDE_HIDDEN:-false}"
 MOVE_TO_TRASH="$(to_bool_or_default "${SYNC_MOVE_TO_TRASH:-true}" "true")"
 TRASH_DIR="${TRASH_DIR:-$HOME/.Trash}"
+LOG_ERRORS="$(to_bool_or_default "${TELEGRAM_LOG_ERRORS:-true}" "true")"
+ERROR_LOG_FILE="${TELEGRAM_ERROR_LOG_FILE:-$SCRIPT_DIR/telegram-sync-error.log}"
 
 if [[ -z "${BOT_TOKEN}" ]]; then
   echo "Missing TELEGRAM_BOT_TOKEN in environment or .env" >&2
@@ -293,6 +362,11 @@ fi
 if [[ -z "${CHAT_ID}" ]]; then
   echo "Missing TELEGRAM_CHAT_ID in environment or .env" >&2
   exit 1
+fi
+
+TELEGRAM_API_URL="$(build_bot_api_url "$API_BASE_URL" "$BOT_TOKEN")"
+if [[ -n "$FALLBACK_API_BASE_URL" ]]; then
+  TELEGRAM_FALLBACK_API_URL="$(build_bot_api_url "$FALLBACK_API_BASE_URL" "$BOT_TOKEN")"
 fi
 
 if [[ -z "${PART_A}" || -z "${PART_B}" || -z "${PART_C}" ]]; then
@@ -323,6 +397,11 @@ STORE_FILE="$SCRIPT_DIR/$STORE_FILE_NAME"
 
 touch "$STATE_FILE"
 touch "$STORE_FILE"
+if [[ "$LOG_ERRORS" == "true" ]]; then
+  mkdir -p "$(dirname "$ERROR_LOG_FILE")"
+  touch "$ERROR_LOG_FILE"
+  log_message "INFO" "start sync_dir=${SYNC_DIR} api_base_url=${API_BASE_URL} fallback_api_base_url=${FALLBACK_API_BASE_URL:-none}"
+fi
 
 files=()
 if [[ "$SYNC_INCLUDE_HIDDEN" == "true" ]]; then
@@ -396,4 +475,5 @@ for file in "${files[@]}"; do
 done
 
 echo "Done. Sent=$sent_count Skipped=$skip_count Failed=$fail_count"
+log_message "INFO" "done sent=${sent_count} skipped=${skip_count} failed=${fail_count}"
 [[ $fail_count -eq 0 ]]

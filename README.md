@@ -38,6 +38,10 @@ Copy `.env.example` to `.env` and update:
 ```bash
 TELEGRAM_BOT_TOKEN="1234567890:your_bot_token_here"
 TELEGRAM_CHAT_ID="-1001234567890"
+TELEGRAM_API_BASE_URL="https://api.telegram.org"
+TELEGRAM_FALLBACK_API_BASE_URL="http://127.0.0.1:8081"
+TELEGRAM_API_ID="12345678"
+TELEGRAM_API_HASH="your_api_hash_from_my_telegram_org"
 TELEGRAM_ENCRYPT_PASSWORD="your-main-secret"
 SECRET_45="your-secret-45"
 SECRET_SAME="your-secret-same"
@@ -47,6 +51,8 @@ TELEGRAM_RETRY_BASE_SEC="2"
 SYNC_INCLUDE_HIDDEN="false"
 SYNC_MOVE_TO_TRASH="true"
 TRASH_DIR="$HOME/.Trash"
+TELEGRAM_LOG_ERRORS="true"
+TELEGRAM_ERROR_LOG_FILE="/Users/hkimhab25/personal-project/collection-scripts/telegram-sync-error.log"
 ```
 
 ### 2) Put files in folder (default)
@@ -85,7 +91,35 @@ bash sync-telegram.sh --dir /path/to/your/folder
 - Script keeps a local state file (`.telegram-sync-state`) and only sends new/changed files in later runs.
 - Anti-spam: script throttles each send (`TELEGRAM_SEND_DELAY_SEC`) and retries failed/rate-limited requests (`TELEGRAM_MAX_RETRIES`, `TELEGRAM_RETRY_BASE_SEC`).
 - After successful send, source file is moved to Trash (restorable). Configure with `SYNC_MOVE_TO_TRASH` and `TRASH_DIR`.
+- Telegram API errors are logged with timestamp and response detail to `telegram-sync-error.log` (configurable via `TELEGRAM_ERROR_LOG_FILE`).
 - Telegram bot must be added to your group/channel and have permission to send messages.
+- To use local Bot API server (supports large uploads, up to ~2000 MB), set:
+  `TELEGRAM_API_BASE_URL="http://127.0.0.1:8081"` (always local), or
+  `TELEGRAM_FALLBACK_API_BASE_URL="http://127.0.0.1:8081"` (auto-switch only when cloud API returns `413`).
+- For fallback mode, keep `TELEGRAM_API_BASE_URL="https://api.telegram.org"` and run a local [tdlib/telegram-bot-api](https://github.com/tdlib/telegram-bot-api) server.
+
+### Local tdlib Bot API setup (`127.0.0.1:8081`)
+
+1. Create Telegram API credentials (`api_id`, `api_hash`) at [my.telegram.org](https://my.telegram.org).
+2. Put them in `.env` as `TELEGRAM_API_ID` and `TELEGRAM_API_HASH`.
+3. Start local server:
+
+```bash
+docker compose -f docker-compose.telegram-bot-api.yml up -d
+```
+
+4. Check server is listening:
+
+```bash
+docker compose -f docker-compose.telegram-bot-api.yml ps
+curl -sS http://127.0.0.1:8081/ || true
+```
+
+5. If needed, inspect logs:
+
+```bash
+docker compose -f docker-compose.telegram-bot-api.yml logs -f --tail=100
+```
 
 ## TODO
 
