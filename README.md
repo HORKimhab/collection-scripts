@@ -29,6 +29,64 @@ sudo chmod +x ~/install-postman-without-third-party.sh
 bash ~/install-postman-without-third-party.sh
 ```
 
+## Sync encrypted files to Telegram group
+
+### 1) Configure environment
+
+Copy `.env.example` to `.env` and update:
+
+```bash
+TELEGRAM_BOT_TOKEN="1234567890:your_bot_token_here"
+TELEGRAM_CHAT_ID="-1001234567890"
+TELEGRAM_ENCRYPT_PASSWORD="your-main-secret"
+SECRET_45="your-secret-45"
+SECRET_SAME="your-secret-same"
+TELEGRAM_SEND_DELAY_SEC="1"
+TELEGRAM_MAX_RETRIES="3"
+TELEGRAM_RETRY_BASE_SEC="2"
+SYNC_INCLUDE_HIDDEN="false"
+SYNC_MOVE_TO_TRASH="true"
+TRASH_DIR="$HOME/.Trash"
+```
+
+### 2) Put files in folder (default)
+
+Default folder is `sync-telegram`.
+
+```bash
+mkdir -p sync-telegram
+# add your files/photos inside sync-telegram/
+```
+
+### 3) Run sync script
+
+```bash
+bash sync-telegram.sh
+```
+
+### 4) Use custom folder (optional)
+
+```bash
+bash sync-telegram.sh /path/to/your/folder
+# or
+bash sync-telegram.sh --dir /path/to/your/folder
+```
+
+### Notes
+
+- Images/videos are sent without encryption so they can open directly after download.
+- All other file types are encrypted before upload using password:
+  `TELEGRAM_ENCRYPT_PASSWORD + SECRET_45 + SECRET_SAME` (string concatenation).
+- Encrypted files are uploaded with `.enc` suffix and caption includes:
+  `Encypt Hint: ${TELEGRAM_ENCRYPT_PASSWORD}45same`
+- No temp directory is used. A hidden encrypted working file is created next to source, uploaded, then deleted.
+- Script writes/appends sent names to `all-store-telegram.txt` next to `sync-telegram.sh` with template:
+  `- {OriginalFileName}`.
+- Script keeps a local state file (`.telegram-sync-state`) and only sends new/changed files in later runs.
+- Anti-spam: script throttles each send (`TELEGRAM_SEND_DELAY_SEC`) and retries failed/rate-limited requests (`TELEGRAM_MAX_RETRIES`, `TELEGRAM_RETRY_BASE_SEC`).
+- After successful send, source file is moved to Trash (restorable). Configure with `SYNC_MOVE_TO_TRASH` and `TRASH_DIR`.
+- Telegram bot must be added to your group/channel and have permission to send messages.
+
 ## TODO
 
 - Use fish and separate append alias to one file, use it with 'include'
@@ -42,6 +100,19 @@ bash ~/install-postman-without-third-party.sh
   eval "$(ssh-agent -s)" >/dev/null
   ssh-add /home/deploy/.ssh/rean-it-deploy >/dev/null 2>&1
   fi
+
+  # Reuse existing ssh-agent if available
+if [ -f "$HOME/.ssh/agent.env" ]; then
+    . "$HOME/.ssh/agent.env" >/dev/null
+fi
+
+if ! ssh-add -l >/dev/null 2>&1; then
+    eval "$(ssh-agent -s)" >/dev/null
+    echo "export SSH_AUTH_SOCK=$SSH_AUTH_SOCK" > "$HOME/.ssh/agent.env"
+    echo "export SSH_AGENT_PID=$SSH_AGENT_PID" >> "$HOME/.ssh/agent.env"
+    ssh-add /home/deploy/.ssh/rean-it-deploy
+fi
+
 ```
 
 ### Naming convention
