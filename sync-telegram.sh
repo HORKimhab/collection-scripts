@@ -172,6 +172,8 @@ send_to_telegram() {
   local caption="$2"
   local upload_name="${3:-}"
   local source_label="${4:-$upload_file}"
+  local upload_file_for_curl="$upload_file"
+  local upload_file_link=""
   local current_api_url="$TELEGRAM_API_URL"
   local current_base_url="$API_BASE_URL"
   local switched_to_fallback="false"
@@ -182,23 +184,42 @@ send_to_telegram() {
   local sleep_sec=0
   local compact_response=""
 
+  if [[ ! -r "$upload_file" ]]; then
+    echo "Upload file is not readable: $source_label" >&2
+    log_message "ERROR" "file_not_readable file=${source_label}"
+    return 1
+  fi
+
+  upload_file_link="$(mktemp "/tmp/telegram-upload.XXXXXX")" || upload_file_link=""
+  if [[ -n "$upload_file_link" ]]; then
+    rm -f -- "$upload_file_link"
+    if ln -s -- "$upload_file" "$upload_file_link" 2>/dev/null; then
+      upload_file_for_curl="$upload_file_link"
+    else
+      upload_file_link=""
+    fi
+  fi
+
   while [[ $attempt -le $MAX_RETRIES ]]; do
     if [[ -n "$upload_name" ]]; then
       response="$(curl -sS -X POST "${current_api_url}/sendDocument" \
         -F "chat_id=${CHAT_ID}" \
         -F "caption=${caption}" \
-        -F "document=@${upload_file};filename=${upload_name}" 2>&1)"
+        -F "document=@${upload_file_for_curl};filename=${upload_name}" 2>&1)"
     else
       response="$(curl -sS -X POST "${current_api_url}/sendDocument" \
         -F "chat_id=${CHAT_ID}" \
         -F "caption=${caption}" \
-        -F "document=@${upload_file}" 2>&1)"
+        -F "document=@${upload_file_for_curl}" 2>&1)"
     fi
     curl_exit=$?
     compact_response="${response//$'\n'/ }"
     compact_response="${compact_response//$'\r'/ }"
 
     if [[ $curl_exit -eq 0 && "$response" == *'"ok":true'* ]]; then
+      if [[ -n "$upload_file_link" ]]; then
+        rm -f -- "$upload_file_link"
+      fi
       sleep "$SEND_DELAY_SEC"
       return 0
     fi
@@ -219,6 +240,12 @@ send_to_telegram() {
       compact_response="${response//$'\n'/ }"
       compact_response="${compact_response//$'\r'/ }"
       log_message "ERROR" "non_retryable_413 file=${source_label} api_base_url=${current_base_url} response=${compact_response}"
+      break
+    fi
+
+    if [[ $curl_exit -eq 26 ]]; then
+      echo "Cannot read file for upload: $source_label" >&2
+      log_message "ERROR" "non_retryable_26 file=${source_label} response=${compact_response}"
       break
     fi
 
@@ -244,6 +271,9 @@ send_to_telegram() {
     attempt=$((attempt + 1))
   done
 
+  if [[ -n "$upload_file_link" ]]; then
+    rm -f -- "$upload_file_link"
+  fi
   echo "Telegram send failed for: $source_label" >&2
   echo "Telegram response: $response" >&2
   log_message "ERROR" "final_fail file=${source_label} curl_exit=${curl_exit} response=${compact_response}"
