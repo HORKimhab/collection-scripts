@@ -29,74 +29,86 @@ sudo chmod +x ~/install-postman-without-third-party.sh
 bash ~/install-postman-without-third-party.sh
 ```
 
-## Sync encrypted files to Telegram group
+## Telegram Channel Range Sync
+
+`sync-telegram.sh` downloads media from a source Telegram channel message range, splits large files (`> 1.95 GB`), sends them to `TELEGRAM_CHAT_ID`, and keeps idempotent local state so reruns do not repeat completed work.
 
 ### 1) Configure environment
 
-Copy `.env.example` to `.env` and update:
+Copy `.env.example` to `.env` and set:
 
 ```bash
+# Required
 TELEGRAM_BOT_TOKEN="1234567890:your_bot_token_here"
 TELEGRAM_CHAT_ID="-1001234567890"
-TELEGRAM_API_BASE_URL="https://api.telegram.org"
 TELEGRAM_FALLBACK_API_BASE_URL="http://127.0.0.1:8081"
-TELEGRAM_API_ID="12345678"
-TELEGRAM_API_HASH="your_api_hash_from_my_telegram_org"
-TELEGRAM_ENCRYPT_PASSWORD="your-main-secret"
-SECRET_45="your-secret-45"
-SECRET_SAME="your-secret-same"
+
+# Optional (defaults shown)
+TELEGRAM_SOURCE_CHAT_ID="https://web.telegram.org/a/#-1002482766032"
+TELEGRAM_DFROM="https://t.me/UdemyPieFiles/3710"
+TELEGRAM_DEND="https://t.me/UdemyPieFiles/3804"
+TELEGRAM_SPLIT_MAX_BYTES="1950000000"
 TELEGRAM_SEND_DELAY_SEC="1"
 TELEGRAM_MAX_RETRIES="3"
 TELEGRAM_RETRY_BASE_SEC="2"
-SYNC_INCLUDE_HIDDEN="false"
 SYNC_MOVE_TO_TRASH="true"
 TRASH_DIR="$HOME/.Trash"
 TELEGRAM_LOG_ERRORS="true"
 TELEGRAM_ERROR_LOG_FILE="/Users/hkimhab25/personal-project/collection-scripts/telegram-sync-error.log"
 ```
 
-### 2) Put files in folder (default)
+Notes:
+- The script uses `TELEGRAM_FALLBACK_API_BASE_URL` for all Telegram API actions (fetch/download/send).
+- Default source range is inclusive: message ID `3710` to `3804`.
 
-Default folder is `sync-telegram`.
-
-```bash
-mkdir -p sync-telegram
-# add your files/photos inside sync-telegram/
-```
-
-### 3) Run sync script
+### 2) Run with defaults
 
 ```bash
 bash sync-telegram.sh
 ```
 
-### 4) Use custom folder (optional)
+### 3) Custom examples
 
+Custom range:
 ```bash
-bash sync-telegram.sh /path/to/your/folder
-# or
-bash sync-telegram.sh --dir /path/to/your/folder
+bash sync-telegram.sh --d-from 3720 --d-end 3750
 ```
 
-### Notes
+Custom source chat:
+```bash
+bash sync-telegram.sh --source-chat-id "https://web.telegram.org/a/#-1002482766032"
+# or
+bash sync-telegram.sh --source-chat-id "-1002482766032"
+```
 
-- Images/videos are sent without encryption so they can open directly after download.
-- All other file types are encrypted before upload using password:
-  `TELEGRAM_ENCRYPT_PASSWORD + SECRET_45 + SECRET_SAME` (string concatenation).
-- Encrypted files are uploaded with `.enc` suffix and caption includes:
-  `Encypt Hint: ${TELEGRAM_ENCRYPT_PASSWORD}45same`
-- No temp directory is used. A hidden encrypted working file is created next to source, uploaded, then deleted.
-- Script writes/appends sent names to `all-store-telegram.txt` next to `sync-telegram.sh` with template:
-  `- {OriginalFileName}`.
-- Script keeps a local state file (`.telegram-sync-state`) and only sends new/changed files in later runs.
-- Anti-spam: script throttles each send (`TELEGRAM_SEND_DELAY_SEC`) and retries failed/rate-limited requests (`TELEGRAM_MAX_RETRIES`, `TELEGRAM_RETRY_BASE_SEC`).
-- After successful send, source file is moved to Trash (restorable). Configure with `SYNC_MOVE_TO_TRASH` and `TRASH_DIR`.
-- Telegram API errors are logged with timestamp and response detail to `telegram-sync-error.log` (configurable via `TELEGRAM_ERROR_LOG_FILE`).
-- Telegram bot must be added to your group/channel and have permission to send messages.
-- To use local Bot API server (supports large uploads, up to ~2000 MB), set:
-  `TELEGRAM_API_BASE_URL="http://127.0.0.1:8081"` (always local), or
-  `TELEGRAM_FALLBACK_API_BASE_URL="http://127.0.0.1:8081"` (auto-switch only when cloud API returns `413`).
-- For fallback mode, keep `TELEGRAM_API_BASE_URL="https://api.telegram.org"` and run a local [tdlib/telegram-bot-api](https://github.com/tdlib/telegram-bot-api) server.
+Custom split size:
+```bash
+bash sync-telegram.sh --split-max-bytes 1500000000
+```
+
+Custom work/state folder:
+```bash
+bash sync-telegram.sh --dir /path/to/workdir --state-file /path/to/workdir/.telegram-sync-state
+```
+
+### 4) Logic and state (idempotent)
+
+For each message ID from `dFrom` to `dEnd`:
+1. Fetch message from source chat.
+2. If no media exists, mark as `no_media` and skip in future runs.
+3. If media exists, download once and mark `downloaded`.
+4. If file size is above `TELEGRAM_SPLIT_MAX_BYTES` (default `1950000000`), split into parts.
+5. Send each part/file to `TELEGRAM_CHAT_ID`; each part is tracked in state.
+6. When all parts are sent, mark message as `sent`.
+7. Apply old cleanup behavior: already-sent local files/parts are removed from working dir (moved to Trash when `SYNC_MOVE_TO_TRASH=true`).
+
+State file defaults to:
+- `sync-telegram/.telegram-sync-state`
+
+This allows safe reruns:
+- downloaded files are not re-downloaded
+- sent files/parts are not re-sent
+- already-sent artifacts are cleaned up
 
 ### Local tdlib Bot API setup (`127.0.0.1:8081`)
 
