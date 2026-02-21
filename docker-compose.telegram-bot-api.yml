@@ -7,10 +7,57 @@ services:
       TELEGRAM_API_ID: "${TELEGRAM_API_ID:?set TELEGRAM_API_ID in .env}"
       TELEGRAM_API_HASH: "${TELEGRAM_API_HASH:?set TELEGRAM_API_HASH in .env}"
       TELEGRAM_LOCAL: "1"
+      # 0=disabled 1=errors 2=warnings 3=info 4=debug 5=verbose
+      TELEGRAM_VERBOSITY: "${TELEGRAM_VERBOSITY:-2}"
     volumes:
       - telegram-bot-api-data:/var/lib/telegram-bot-api
     ports:
       - "127.0.0.1:8081:8081"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8081/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  # tdl (Telegram Downloader) — uses your personal MTProto session so it can
+  # access any channel your Telegram account is a member of, including private
+  # channels that a bot token cannot reach.
+  #
+  # First-time login (interactive, run once):
+  #   docker compose exec -it tdl tdl login -T code
+  #
+  # After login the session is persisted in the tdl-data volume.
+  # sync-telegram.sh invokes downloads via:
+  #   docker compose exec tdl tdl ...
+  tdl:
+    image: iyear/tdl:latest
+    container_name: tdl
+    restart: unless-stopped
+    environment:
+      # Namespace isolates session storage; keep consistent across runs.
+      TDL_NS: "${TDL_NS:-tgsync}"
+      # Optional proxy. Example: socks5://127.0.0.1:1080
+      TDL_PROXY: "${TDL_PROXY:-}"
+    volumes:
+      # Downloaded files land here; sync-telegram.sh reads from this path.
+      - "${TDL_DOWNLOAD_DIR:-./sync-telegram}:/downloads"
+      # Persisted session data (login tokens, cache).
+      - tdl-data:/root/.tdl
+    # Keep tdl container alive; sync-telegram.sh execs commands into it.
+    # Manual example:
+    #   docker compose exec tdl tdl chat export -c -1002482766032 -T id -i 3720,3750 --all -o /downloads/export.json
+    #   docker compose exec tdl tdl dl -f /downloads/export.json -d /downloads -t 4 --continue
+    entrypoint: ["/bin/sh", "-lc"]
+    command: ["sleep infinity"]
 
 volumes:
   telegram-bot-api-data:
+    driver: local
+  tdl-data:
+    driver: local

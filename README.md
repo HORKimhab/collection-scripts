@@ -31,54 +31,53 @@ bash ~/install-postman-without-third-party.sh
 
 ## Telegram Channel Range Sync
 
-`sync-telegram.sh` downloads media from a source Telegram channel message range, splits large files (`> 1.95 GB`), sends them to `TELEGRAM_CHAT_ID`, and keeps idempotent local state so reruns do not repeat completed work.
+`sync-telegram.sh` syncs media from a source channel/chat message range to `TELEGRAM_CHAT_ID`, in order, with idempotent state and split support.
 
-### 1) Configure environment
-
-Copy `.env.example` to `.env` and set:
+Required env vars:
 
 ```bash
-# Required
 TELEGRAM_BOT_TOKEN="1234567890:your_bot_token_here"
 TELEGRAM_CHAT_ID="-1001234567890"
 TELEGRAM_FALLBACK_API_BASE_URL="http://127.0.0.1:8081"
+```
 
-# Optional (defaults shown)
+Optional env vars (defaults):
+
+```bash
 TELEGRAM_SOURCE_CHAT_ID="https://web.telegram.org/a/#-1002482766032"
+TELEGRAM_SOURCE_CHAT="https://web.telegram.org/a/#-1002482766032" # alias
 TELEGRAM_DFROM="https://t.me/UdemyPieFiles/3710"
 TELEGRAM_DEND="https://t.me/UdemyPieFiles/3804"
 TELEGRAM_SPLIT_MAX_BYTES="1950000000"
-TELEGRAM_SEND_DELAY_SEC="1"
-TELEGRAM_MAX_RETRIES="3"
-TELEGRAM_RETRY_BASE_SEC="2"
-SYNC_MOVE_TO_TRASH="true"
-TRASH_DIR="$HOME/.Trash"
-TELEGRAM_LOG_ERRORS="true"
-TELEGRAM_ERROR_LOG_FILE="/Users/hkimhab25/personal-project/collection-scripts/telegram-sync-error.log"
+TELEGRAM_SOURCE_MODE="bot" # bot|dtt
+TELEGRAM_SOURCE_LINK_BASE="" # optional link base, ex: https://t.me/UdemyPieFiles
+TELEGRAM_DTT_FETCH_CMD_TEMPLATE="docker compose -f docker-compose.telegram-bot-api.yml run --rm telegram-dtt tdl chat export -c __SOURCE_CHAT__ -T id -i __MESSAGE_ID__,__MESSAGE_ID__ --all -o -"
+TELEGRAM_DTT_DOWNLOAD_CMD_TEMPLATE="docker compose -f docker-compose.telegram-bot-api.yml run --rm telegram-dtt tdl dl -u __MESSAGE_LINK__ -d __OUTPUT_DIR__ --continue --skip-same"
 ```
 
-Notes:
-- The script uses `TELEGRAM_FALLBACK_API_BASE_URL` for all Telegram API actions (fetch/download/send).
-- Default source range is inclusive: message ID `3710` to `3804`.
+Defaults:
+- source chat: `https://web.telegram.org/a/#-1002482766032`
+- dFrom: `https://t.me/UdemyPieFiles/3710`
+- dEnd: `https://t.me/UdemyPieFiles/3804`
+- split max: `1950000000` bytes (~1.95 GB)
 
-### 2) Run with defaults
+Usage examples:
 
+Default run:
 ```bash
 bash sync-telegram.sh
 ```
-
-### 3) Custom examples
 
 Custom range:
 ```bash
 bash sync-telegram.sh --d-from 3720 --d-end 3750
 ```
 
-Custom source chat:
+Custom source chat/channel:
 ```bash
-bash sync-telegram.sh --source-chat-id "https://web.telegram.org/a/#-1002482766032"
-# or
 bash sync-telegram.sh --source-chat-id "-1002482766032"
+bash sync-telegram.sh --source-chat-id "@UdemyPieFiles"
+bash sync-telegram.sh --source-chat-id "https://t.me/UdemyPieFiles"
 ```
 
 Custom split size:
@@ -86,38 +85,30 @@ Custom split size:
 bash sync-telegram.sh --split-max-bytes 1500000000
 ```
 
-Custom work/state folder:
+Source access via Docker DTT/TDLib mode:
 ```bash
-bash sync-telegram.sh --dir /path/to/workdir --state-file /path/to/workdir/.telegram-sync-state
+TELEGRAM_SOURCE_MODE=dtt bash sync-telegram.sh --d-from 3720 --d-end 3750 --source-chat-id "-1002482766032"
 ```
 
-### 4) Logic and state (idempotent)
+Behavior notes:
+- Bot actions (fetch where available, getFile/download, send/upload) use `TELEGRAM_FALLBACK_API_BASE_URL`.
+- `bot` mode reads source via Bot API.
+- `dtt` mode reads/downloads source via Docker command templates, then still uploads via Bot API to `TELEGRAM_CHAT_ID`.
+- Download/send are idempotent: completed downloads and sent parts are skipped on rerun.
+- Message-level `sent` is marked only after all required parts succeed.
+- Existing cleanup behavior is preserved after successful send (move/delete local source and split parts).
+- If source is inaccessible, the script exits early and logs the exact reason.
 
-For each message ID from `dFrom` to `dEnd`:
-1. Fetch message from source chat.
-2. If no media exists, mark as `no_media` and skip in future runs.
-3. If media exists, download once and mark `downloaded`.
-4. If file size is above `TELEGRAM_SPLIT_MAX_BYTES` (default `1950000000`), split into parts.
-5. Send each part/file to `TELEGRAM_CHAT_ID`; each part is tracked in state.
-6. When all parts are sent, mark message as `sent`.
-7. Apply old cleanup behavior: already-sent local files/parts are removed from working dir (moved to Trash when `SYNC_MOVE_TO_TRASH=true`).
-
-State file defaults to:
-- `sync-telegram/.telegram-sync-state`
-
-This allows safe reruns:
-- downloaded files are not re-downloaded
-- sent files/parts are not re-sent
-- already-sent artifacts are cleaned up
-
-### Local tdlib Bot API setup (`127.0.0.1:8081`)
+### Local tdlib Bot API + DTT setup (`127.0.0.1:8081`)
 
 1. Create Telegram API credentials (`api_id`, `api_hash`) at [my.telegram.org](https://my.telegram.org).
 2. Put them in `.env` as `TELEGRAM_API_ID` and `TELEGRAM_API_HASH`.
-3. Start local server:
+3. Start local services:
 
 ```bash
-docker compose -f docker-compose.telegram-bot-api.yml up -d
+docker compose -f docker-compose.telegram-bot-api.yml up -d telegram-bot-api
+# optional DTT profile:
+docker compose -f docker-compose.telegram-bot-api.yml --profile dtt up -d telegram-dtt
 ```
 
 4. Check server is listening:
