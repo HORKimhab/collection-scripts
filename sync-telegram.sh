@@ -266,6 +266,17 @@ state_has() {
   [[ -n "${STATE_INDEX[$key]+x}" ]]
 }
 
+state_has_prefix() {
+  local prefix="$1"
+  local key=""
+  for key in "${!STATE_INDEX[@]}"; do
+    if [[ "$key" == "$prefix"* ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 state_add() {
   local key="$1"
   state_has "$key" && return 0
@@ -278,6 +289,15 @@ state_add() {
 # -----------------------------
 
 API_LAST_RESPONSE=""
+
+# Keep upload service running via Docker compose.
+ensure_telegram_bot_api_service() {
+  if ! docker compose -f "$TDL_COMPOSE_FILE" up -d telegram-bot-api >/dev/null 2>&1; then
+    echo "Failed to start telegram-bot-api service from compose file: ${TDL_COMPOSE_FILE}" >&2
+    return 1
+  fi
+  return 0
+}
 
 read_retry_after_seconds() {
   local response="$1"
@@ -535,12 +555,19 @@ collect_files_to_send() {
 send_file_with_split_state() {
   local message_id="$1"
   local source_file="$2"
+  local source_hash_short="${3:-}"
   local files_to_send=() total=0 idx=1
-  local item="" item_hash="" part_state_key="" caption=""
+  local item="" item_hash="" source_hash="" part_state_key="" complete_key="" caption=""
 
   mapfile -t files_to_send < <(collect_files_to_send "$source_file") || return 1
   total="${#files_to_send[@]}"
   [[ "$total" -eq 0 ]] && return 1
+  if [[ -n "$source_hash_short" ]]; then
+    source_hash="$source_hash_short"
+  else
+    source_hash="$(sha256_file "$source_file" | cut -c1-16)" || return 1
+  fi
+  complete_key="channel|${SOURCE_CHAT_ID}|${message_id}|upload_complete|${source_hash}|parts=${total}"
 
   for item in "${files_to_send[@]}"; do
     item_hash="$(sha256_file "$item")" || return 1
@@ -565,6 +592,9 @@ Time: $(date '+%Y-%m-%d %H:%M:%S')"
     idx=$((idx + 1))
   done
 
+  # Marker for "all parts confirmed sent" to survive crashes between
+  # per-part updates and message-level sent/done keys.
+  state_add "$complete_key"
   return 0
 }
 
@@ -591,28 +621,57 @@ cleanup_message_artifacts() {
 # Core per-message workflow
 # -----------------------------
 
-# Process one already-downloaded message:
-# locate tdl file → split if needed → send → persist state → cleanup.
+# Process one message end-to-end:
+# skip if done → download (if needed) → send → persist state → cleanup.
 process_downloaded_message() {
   local message_id="$1"
   local local_file=""
-  local safe_name="" file_hash=""
+  local file_hash=""
+  local complete_prefix=""
 
   local sent_key="channel|${SOURCE_CHAT_ID}|${message_id}|sent"
+  local done_key="channel|${SOURCE_CHAT_ID}|${message_id}|done"
+  local no_media_key="channel|${SOURCE_CHAT_ID}|${message_id}|no_media"
+  complete_prefix="channel|${SOURCE_CHAT_ID}|${message_id}|upload_complete|"
 
   # Already fully sent in a previous run.
-  if state_has "$sent_key"; then
+  # `upload_complete` protects against re-download/re-send when a run crashed
+  # after sending all parts but before writing sent/done keys.
+  if state_has "$sent_key" || state_has "$done_key" || state_has_prefix "$complete_prefix"; then
+    state_add "$sent_key"
+    state_add "$done_key"
     cleanup_message_artifacts "$message_id"
     skip_count=$((skip_count + 1))
     return 0
   fi
 
-  # Locate the file tdl wrote for this message ID.
+  # If message was confirmed no-media in a previous run, skip directly.
+  if state_has "$no_media_key"; then
+    skip_count=$((skip_count + 1))
+    return 0
+  fi
+
+  # Ensure upload service is ready in Docker before processing message parts.
+  if ! ensure_telegram_bot_api_service; then
+    fail_count=$((fail_count + 1))
+    return 1
+  fi
+
+  # Locate already-downloaded media first to avoid unnecessary re-download.
   local_file="$(find_tdl_file_for_message "$message_id")"
+
+  # Download exactly this message if file is not present locally.
+  if [[ -z "$local_file" ]]; then
+    if ! tdl_download_range "$message_id" "$message_id"; then
+      echo "Download failed for message: ${message_id}" >&2
+      fail_count=$((fail_count + 1))
+      return 1
+    fi
+    local_file="$(find_tdl_file_for_message "$message_id")"
+  fi
 
   if [[ -z "$local_file" ]]; then
     # tdl may have skipped this message (no media, deleted, etc.).
-    local no_media_key="channel|${SOURCE_CHAT_ID}|${message_id}|no_media"
     state_add "$no_media_key"
     skip_count=$((skip_count + 1))
     return 0
@@ -630,8 +689,9 @@ process_downloaded_message() {
   state_add "$download_key"
 
   # Send file (or parts), then mark message as sent.
-  if send_file_with_split_state "$message_id" "$local_file"; then
+  if send_file_with_split_state "$message_id" "$local_file" "$file_hash"; then
     state_add "$sent_key"
+    state_add "$done_key"
     printf -- "- %s\n" "$(basename "$local_file")" >> "$STORE_FILE"
     cleanup_message_artifacts "$message_id"
     sent_count=$((sent_count + 1))
@@ -806,19 +866,9 @@ skip_count=0
 fail_count=0
 
 # -----------------------------------------------------------------------
-# Step 1: Use tdl to download the entire range in one shot.
-#         tdl handles resumption internally (--continue).
-#         Already-downloaded files are reused by tdl automatically.
-# -----------------------------------------------------------------------
-if ! tdl_download_range "$FROM_ID" "$TO_ID"; then
-  echo "tdl download step failed — aborting." >&2
-  log_message "ERROR" "tdl_download_range_failed from=${FROM_ID} to=${TO_ID}"
-  exit 1
-fi
-
-# -----------------------------------------------------------------------
-# Step 2: Walk the message range sequentially and send each file.
-#         Per-message and per-part idempotency is handled via state file.
+# Step 1: Walk range strictly one message at a time.
+#         Order is: download -> send -> mark done -> next.
+#         Completed messages are skipped via state before download.
 # -----------------------------------------------------------------------
 for ((message_id=FROM_ID; message_id<=TO_ID; message_id++)); do
   process_downloaded_message "$message_id" || true
