@@ -27,13 +27,14 @@ STAGING_USER="ctdb1"
 BACKUP_DIR="$HOME/staging_backups"
 DATE=$(date +%F_%H-%M-%S)
 LOGIN_PATH_STAGING="staging"
-LOGIN_PATH_LOCAL="local"
+LOGIN_PATH_LOCAL="${LOGIN_PATH_LOCAL:-local}"
 
 # 10: To keep the newest 5 databases DATABASES has 5 values
 KEEP_LAST=10
 
 # Local MySQL
-LOCAL_USER="root"
+LOCAL_USER="${LOCAL_USER_MYSQL:-root}"
+MYSQL_HOST_LOCAL="${MYSQL_HOST_LOCAL:-localhost}"
 
 # -----------------------------------------------------
 # Databases to sync (STAGING → LOCAL)
@@ -87,7 +88,7 @@ require_command gzip
 mkdir -p "$BACKUP_DIR"
 
 ensure_login_path "$LOGIN_PATH_STAGING" "$STAGING_HOST" "$STAGING_USER"
-ensure_login_path "$LOGIN_PATH_LOCAL" "localhost" "$LOCAL_USER"
+ensure_login_path "$LOGIN_PATH_LOCAL" "$MYSQL_HOST_LOCAL" "$LOCAL_USER"
 
 # -----------------------------------------------------
 # Backup & Restore Loop
