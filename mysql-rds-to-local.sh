@@ -27,7 +27,7 @@ STAGING_USER="ctdb1"
 BACKUP_DIR="$HOME/staging_backups"
 DATE=$(date +%F_%H-%M-%S)
 LOGIN_PATH_STAGING="staging"
-LOGIN_PATH_LOCAL="${LOGIN_PATH_LOCAL:-local}"
+LOGIN_PATH_LOCAL="${LOGIN_PATH_LOCAL:-local}${DATE}"
 
 # 10: To keep the newest 5 databases DATABASES has 5 values
 KEEP_LAST=10
