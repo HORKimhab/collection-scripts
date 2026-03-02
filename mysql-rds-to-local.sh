@@ -29,9 +29,6 @@ DATE=$(date +%F_%H-%M-%S)
 LOGIN_PATH_STAGING="staging"
 LOGIN_PATH_LOCAL="${LOGIN_PATH_LOCAL:-local}${DATE}"
 
-# 10: To keep the newest 5 databases DATABASES has 5 values
-KEEP_LAST=10
-
 # Local MySQL
 LOCAL_USER="${LOCAL_USER_MYSQL:-root}"
 MYSQL_HOST_LOCAL="${MYSQL_HOST_LOCAL:-localhost}"
@@ -102,6 +99,9 @@ ensure_login_path "$LOGIN_PATH_LOCAL" "$MYSQL_HOST_LOCAL" "$LOCAL_USER"
 
 # Convert env → array (single operation, no fork)
 read -ra DATABASES <<< "$DATABASE_PAIRS"
+
+KEEP_LAST=$(( ${#DATABASES[@]} / 2 ))
+(( KEEP_LAST < 1 )) && KEEP_LAST=1
 
 for DB_PAIR in "${DATABASES[@]}"; do
   [[ $DB_PAIR == *:* ]] || {
