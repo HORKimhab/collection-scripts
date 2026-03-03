@@ -22,7 +22,7 @@ set +a
 # Global Config
 # -----------------------------------------------------
 STAGING_HOST="${STAGING_HOST:-your-host-mysql-db}"
-STAGING_USER="ctdb1"
+STAGING_USER="${STAGING_USER_MYSQL:-input_staging_user_mysql}"
 
 BACKUP_DIR="$HOME/staging_backups"
 DATE=$(date +%F_%H-%M-%S)
