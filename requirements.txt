@@ -1,0 +1,16 @@
+# ─── S3 Multi-Bucket Image Downloader ─────────────────────
+# Install: uv pip install -r requirements.txt
+
+# Core
+boto3==1.42.78
+
+# Environment variables from .s3.env
+python-dotenv==1.2.2
+
+# boto3 dependencies (auto-installed)
+botocore==1.42.78
+jmespath==1.1.0
+python-dateutil==2.9.0.post0
+s3transfer==0.16.0
+six==1.17.0
+urllib3==2.6.3

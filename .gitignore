@@ -1,5 +1,7 @@
 .DS_Store
 .env*
+*.env
+!.s3.env.example
 !.env.example
 sync-telegram/*
 !sync-telegram/.gitkeep
