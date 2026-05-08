@@ -152,6 +152,8 @@ fi
 
 ```
 
+- [ ] Improve upload_archive (Test, Secure password not store in history, random name, ...)
+
 ### Naming convention
 
 - snake_case: e.g: `highlight_file`
