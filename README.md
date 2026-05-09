@@ -153,6 +153,7 @@ fi
 ```
 
 - [ ] Improve upload_archive (Test, Secure password not store in history, random name, ...)
+- [ ] Improve 'share-video-private-yt' 
 
 ### Naming convention
 
