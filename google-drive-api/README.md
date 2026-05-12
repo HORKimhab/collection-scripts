@@ -3,7 +3,7 @@
 ```bash
 python3 -m venv venv
 source venv/bin/activate
-pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib
+pip install -r requirements.txt
 ```
 
 ## More
