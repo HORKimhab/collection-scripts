@@ -9,7 +9,15 @@ sync-telegram/*
 all-store-telegram.txt
 telegram-sync-error.log
 
-
 # Python 
 **/__pycache__
 **/venv
+share-video-private-yt/.env
+share-video-private-yt/.auth/
+share-video-private-yt/logs/
+share-video-private-yt/output/
+share-video-private-yt/playlists.txt
+share-video-private-yt/emails.txt
+**/__pycache__/
+
+share-video-private-yt/node_modules/

@@ -1,0 +1,12 @@
+{
+  "name": "share-video-private-yt",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Report and automate private YouTube video sharing from playlist inputs",
+  "scripts": {
+    "share": "node scripts/share_private_videos.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.54.0"
+  }
+}
