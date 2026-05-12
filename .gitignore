@@ -8,3 +8,8 @@ sync-telegram/*
 **/.telegram-sync-state
 all-store-telegram.txt
 telegram-sync-error.log
+
+
+# Python 
+**/__pycache__
+**/venv
