@@ -19,5 +19,6 @@ share-video-private-yt/output/
 share-video-private-yt/playlists.txt
 share-video-private-yt/emails.txt
 **/__pycache__/
+.venv
 
 share-video-private-yt/node_modules/

@@ -1,0 +1,5 @@
+# One search term per line.
+# The script searches file names and indexed file text inside the target folder.
+
+# Search content
+DC6T0BFX-1
