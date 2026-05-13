@@ -224,3 +224,4 @@ __marimo__/
 token.json
 credentials.json
 search.txt
+*.enc
