@@ -1,6 +1,6 @@
 import io
-import json
 import mimetypes
+import stat
 import zipfile
 from pathlib import Path
 
@@ -49,11 +49,22 @@ def load_client_config():
   return client_config
 
 
+def ensure_private_file(path):
+  mode = stat.S_IMODE(path.stat().st_mode)
+  if mode & 0o077:
+    raise PermissionError(
+        f"{path.name} permissions are too open. Run 'chmod 600 {path.name}' "
+        "so only your user can read and write it."
+    )
+
+
 def load_env_file():
   if not ENV_PATH.exists():
     raise FileNotFoundError(
         f"Missing {ENV_PATH.name}. Add FOLDER_ID to that file."
     )
+
+  ensure_private_file(ENV_PATH)
 
   env = {}
   for raw_line in ENV_PATH.read_text().splitlines():
@@ -247,28 +258,17 @@ def main():
 
     DOWNLOADS_DIR.mkdir(exist_ok=True)
     downloaded_paths = []
-    manifest = []
 
     for file_metadata in sorted(matched_files.values(), key=lambda item: item["name"].lower()):
       output_path = download_file(service, file_metadata)
       downloaded_paths.append(output_path)
-      manifest.append(
-          {
-              "id": file_metadata["id"],
-              "name": file_metadata["name"],
-              "mimeType": file_metadata["mimeType"],
-              "savedAs": output_path.name,
-          }
-      )
       print(f"Downloaded {file_metadata['name']} -> {output_path.name}")
-
-    manifest_path = DOWNLOADS_DIR / "manifest.json"
-    manifest_path.write_text(json.dumps(manifest, indent=2))
-    downloaded_paths.append(manifest_path)
 
     write_zip_archive(downloaded_paths)
     print(f"Created {ZIP_PATH}")
   except FileNotFoundError as error:
+    print(error)
+  except PermissionError as error:
     print(error)
   except ValueError as error:
     print(error)

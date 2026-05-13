@@ -4,10 +4,16 @@
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+deactivate # exit .venv
 ```
 
 Create `credentials.json` in this folder, then add one search term per line to `search.txt`.
 Create `.env` in this folder with `FOLDER_ID=your_google_drive_folder_id`.
+Secure the file so only your user can read it:
+
+```bash
+chmod 600 .env
+```
 
 `credentials.json` must be the JSON downloaded from a Google OAuth client of type `Desktop app`.
 Do not use an OAuth Playground export or a `web` client JSON here.
