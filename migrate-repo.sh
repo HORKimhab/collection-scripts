@@ -1,19 +1,15 @@
 #!/usr/bin/env bash
-# Move old repo history to a new GitHub repo.
-# Usage: ./migrate-repo.sh <old-repo-path> <new-repo-url>
+# Move current repo history to a new GitHub repo.
+# Usage: ./migrate-repo.sh [new-repo-url]
 
 set -e
 
-OLD_REPO="$1"
-NEW_URL="$2"
+NEW_URL="$1"
 
-# Both inputs are required
-if [ -z "$OLD_REPO" ] || [ -z "$NEW_URL" ]; then
-  echo "Usage: ./migrate-repo.sh <old-repo-path> <new-repo-url>"
-  exit 1
-fi
-
-cd "$OLD_REPO"
+# If no URL was passed, ask for it until the user types one
+while [ -z "$NEW_URL" ]; do
+  read -r -p "Enter new repo URL (required): " NEW_URL
+done
 
 # Rename old origin (ignore if it does not exist)
 git remote rename origin old-origin 2>/dev/null || true
