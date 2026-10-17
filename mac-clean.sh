@@ -1,6 +1,16 @@
 #!/bin/bash
 # mac-clean.sh
 
+# cat >> ~/.zshrc <<'EOF'
+
+# macclean-update() {
+#   curl -fsSL https://raw.githubusercontent.com/HORKimhab/collection-scripts/refs/heads/main/mac-clean.sh -o "$HOME/bin/mac-clean.sh" \
+#     && chmod +x "$HOME/bin/mac-clean.sh" \
+#     && echo "macclean updated."
+# }
+# EOF
+# source ~/.zshrc
+
 SCRIPT="$(basename "$0")"
 
 usage() {
