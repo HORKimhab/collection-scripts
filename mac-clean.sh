@@ -1,6 +1,11 @@
 #!/bin/bash
 # mac-clean.sh
 
+# mkdir -p ~/bin
+# grep -q "alias macclean=" ~/.zshrc || echo "alias macclean='\$HOME/bin/mac-clean.sh'" >> ~/.zshrc
+# source ~/.zshrc
+# macclean-update
+
 # cat >> ~/.zshrc <<'EOF'
 
 # macclean-update() {
