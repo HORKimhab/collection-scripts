@@ -11,8 +11,11 @@ while [ -z "$NEW_URL" ]; do
   read -r -p "Enter new repo URL (required): " NEW_URL
 done
 
-# Rename old origin (ignore if it does not exist)
-git remote rename origin old-origin 2>/dev/null || true
+# Remove the old origin (show its URL first, ignore if none)
+if git remote get-url origin >/dev/null 2>&1; then
+  echo "Removing old origin: $(git remote get-url origin)"
+  git remote remove origin
+fi
 
 # Add the new repo
 git remote add origin "$NEW_URL"
@@ -21,4 +24,4 @@ git remote add origin "$NEW_URL"
 git push -u origin --all
 git push origin --tags
 
-echo "Done!"
+echo "Done! Origin is now: $(git remote get-url origin)"
