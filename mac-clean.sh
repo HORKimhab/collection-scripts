@@ -20,7 +20,7 @@ SCRIPT="$(basename "$0")"
 
 usage() {
   cat <<EOF
-Usage: $SCRIPT [dry|run]
+Usage: $SCRIPT [dry|run] [--quit]
        $SCRIPT -h | --help
 EOF
 }
@@ -30,7 +30,7 @@ show_help() {
 $SCRIPT - Clean caches and temp files on macOS (browsers are left untouched)
 
 USAGE
-  $SCRIPT [MODE]
+  $SCRIPT [MODE] [--quit]
   $SCRIPT -h | --help
 
 MODES
@@ -38,12 +38,14 @@ MODES
   run    Actually delete files
 
 OPTIONS
+  -q, --quit    Quit open browsers first (like Cmd+Q, so logins are saved)
   -h, --help    Show this help message and exit
 
 EXAMPLES
   $SCRIPT              Same as 'dry'
   $SCRIPT dry          Preview what would be deleted
   $SCRIPT run          Delete for real (asks for sudo only to flush DNS)
+  $SCRIPT run --quit   Quit open browsers, then delete for real
 
 WHAT IT CLEANS
   - ~/Library/Caches (except browsers, com.apple.*, CloudKit)
@@ -61,24 +63,30 @@ WHAT IT NEVER TOUCHES
   - Trash, Xcode Archives, iCloud/CloudKit caches
 
 NOTES
-  - Quit your apps before using 'run' (it refuses to run while a browser is open).
+  - Quit your apps before using 'run' (it refuses to run while a browser
+    is open, unless you add --quit).
   - Do not run as root or with sudo.
   - Restart your Mac afterward for a full refresh.
 EOF
 }
 
 # Parse arguments
-case "${1:-dry}" in
-  -h|--help) show_help; exit 0 ;;
-  dry|run)   MODE="${1:-dry}" ;;
-  *)
-    echo "Error: unknown option '$1'" >&2
-    echo >&2
-    usage >&2
-    echo "Try '$SCRIPT --help' for more information." >&2
-    exit 1
-    ;;
-esac
+MODE="dry"
+QUIT_BROWSERS=0
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help) show_help; exit 0 ;;
+    dry|run)   MODE="$arg" ;;
+    -q|--quit) QUIT_BROWSERS=1 ;;
+    *)
+      echo "Error: unknown option '$arg'" >&2
+      echo >&2
+      usage >&2
+      echo "Try '$SCRIPT --help' for more information." >&2
+      exit 1
+      ;;
+  esac
+done
 
 # Safety: never run as root (would target the wrong home folder)
 if [ "$(id -u)" -eq 0 ]; then
@@ -135,13 +143,42 @@ del_contents() {
 # Browsers must be closed, otherwise deleting their temp files can end sessions
 BROWSERS=("Google Chrome" "Safari" "firefox" "Microsoft Edge" "Arc" "Brave Browser"
           "Opera" "Vivaldi" "Chromium" "Orion" "zen")
+running_browsers() {
+  local b
+  for b in "${BROWSERS[@]}"; do
+    pgrep -xq "$b" && echo "$b"
+  done
+}
+
 if [ "$MODE" = "run" ]; then
   running=()
-  for b in "${BROWSERS[@]}"; do
-    pgrep -xq "$b" && running+=("$b")
-  done
+  while IFS= read -r b; do running+=("$b"); done < <(running_browsers)
+
+  if [ "${#running[@]}" -gt 0 ] && [ "$QUIT_BROWSERS" -eq 1 ]; then
+    # Quit like Cmd+Q (not kill) so browsers save cookies and sessions
+    for b in "${running[@]}"; do
+      echo "Quitting $b..."
+      osascript -e "quit app \"$b\"" >/dev/null 2>&1
+    done
+    # Wait up to 15 seconds for them to close
+    for _ in $(seq 15); do
+      [ -z "$(running_browsers)" ] && break
+      sleep 1
+    done
+    running=()
+    while IFS= read -r b; do running+=("$b"); done < <(running_browsers)
+  fi
+
   if [ "${#running[@]}" -gt 0 ]; then
     echo "Please quit these browsers first: ${running[*]}" >&2
+    echo >&2
+    echo "Quit them yourself with Cmd+Q, or run:" >&2
+    for b in "${running[@]}"; do
+      echo "  osascript -e 'quit app \"$b\"'" >&2
+    done
+    echo >&2
+    echo "Or let this script quit them for you:" >&2
+    echo "  $SCRIPT run --quit" >&2
     exit 1
   fi
 fi
