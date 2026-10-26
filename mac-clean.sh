@@ -85,9 +85,22 @@ if [ "$(id -u)" -eq 0 ]; then
   echo "Do not run as root/sudo." >&2; exit 1
 fi
 
-# Delete helper: prints in dry mode, deletes in run mode
+# In dry mode, sizes of what would be deleted are collected here for a total
+if [ "$MODE" = "dry" ]; then
+  DRY_LOG="$(mktemp -t mac-clean)"
+  trap 'rm -f "$DRY_LOG"' EXIT
+fi
+
+# Delete helper: prints with size in dry mode, deletes in run mode
 del() {
-  if [ "$MODE" = "run" ]; then rm -rf "$@" 2>/dev/null; else echo "[dry] rm -rf $*"; fi
+  if [ "$MODE" = "run" ]; then
+    rm -rf "$@" 2>/dev/null
+  else
+    local kb
+    kb=$(du -sk "$@" 2>/dev/null | awk '{s += $1} END {print s + 0}')
+    echo "$kb" >> "$DRY_LOG"
+    echo "[dry] rm -rf $* ($(human "$kb"))"
+  fi
 }
 
 # Command helper for tool cleanups
@@ -114,6 +127,7 @@ del_contents() {
   find "$1" -mindepth 1 -maxdepth 1 "${@:2}" -print0 |
     while IFS= read -r -d '' p; do
       is_browser "$p" && continue
+      [ "$p" = "$DRY_LOG" ] && continue
       del "$p"
     done
 }
@@ -133,6 +147,19 @@ if [ "$MODE" = "run" ]; then
 fi
 
 echo "Mode: $MODE"
+# Free space on / in KB, used to report how much was freed
+free_kb() { df -k / | awk 'NR==2 {print $4}'; }
+
+# Format KB as a human-readable size
+human() {
+  awk -v kb="$1" 'BEGIN {
+    if (kb >= 1048576) printf "%.2f GB", kb / 1048576
+    else if (kb >= 1024) printf "%.1f MB", kb / 1024
+    else printf "%d KB", kb
+  }'
+}
+
+FREE_BEFORE=$(free_kb)
 echo "Free space before:"; df -h / | tail -1
 echo
 
@@ -175,4 +202,15 @@ fi
 
 echo
 echo "Free space after:"; df -h / | tail -1
-[ "$MODE" = "run" ] && echo "Done. Restart your Mac for a full refresh."
+
+if [ "$MODE" = "run" ]; then
+  FREED=$(( $(free_kb) - FREE_BEFORE ))
+  [ "$FREED" -lt 0 ] && FREED=0
+  echo "Space freed: $(human "$FREED")"
+  echo "Free now:    $(human "$(free_kb)")"
+  echo "Done. Restart your Mac for a full refresh."
+else
+  echo "Would free about: $(human "$(awk '{s += $1} END {print s + 0}' "$DRY_LOG")")"
+  echo "(plus brew/npm/yarn/pnpm/go/pip/composer caches, not measured)"
+  echo "Run '$SCRIPT run' to delete for real."
+fi
