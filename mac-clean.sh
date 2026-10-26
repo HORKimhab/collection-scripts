@@ -27,7 +27,7 @@ EOF
 
 show_help() {
   cat <<EOF
-$SCRIPT - Clean caches and temp files on macOS (Brave is left untouched)
+$SCRIPT - Clean caches and temp files on macOS (browsers are left untouched)
 
 USAGE
   $SCRIPT [MODE]
@@ -46,21 +46,22 @@ EXAMPLES
   $SCRIPT run          Delete for real (asks for sudo only to flush DNS)
 
 WHAT IT CLEANS
-  - ~/Library/Caches (except Brave, com.apple.*, CloudKit)
-  - \$TMPDIR contents
+  - ~/Library/Caches (except browsers, com.apple.*, CloudKit)
+  - \$TMPDIR contents (except browsers)
   - ~/Library/Logs and crash reports
-  - Saved Application State
+  - Saved Application State (except browsers)
   - Dev caches: brew, npm, yarn, pnpm, go, pip3, composer,
     Xcode DerivedData, CoreSimulator, Gradle, Maven
   - DNS cache
 
 WHAT IT NEVER TOUCHES
-  - Brave cache and profile
+  - Browser data: Chrome, Safari, Firefox, Edge, Arc, Brave, Opera,
+    Vivaldi, Chromium, Orion, Zen (cookies and logins stay intact)
   - /System, /Library, /private/var
   - Trash, Xcode Archives, iCloud/CloudKit caches
 
 NOTES
-  - Quit your apps before using 'run'.
+  - Quit your apps before using 'run' (it refuses to run while a browser is open).
   - Do not run as root or with sudo.
   - Restart your Mac afterward for a full refresh.
 EOF
@@ -94,21 +95,53 @@ runcmd() {
   if [ "$MODE" = "run" ]; then "$@" >/dev/null 2>&1; else echo "[dry] $*"; fi
 }
 
+# Browser data (caches, temp files, saved state) is skipped so logins and
+# cookies for sites like Gmail/Facebook are never touched
+is_browser() {
+  local name
+  name="$(basename "$1" | tr '[:upper:]' '[:lower:]')"
+  case "$name" in
+    *brave*|*google*|*chrome*|*chromium*|*firefox*|*mozilla*|*safari*|*webkit*| \
+    *edge*|*edgemac*|arc|company.thebrowser.*|*opera*|*vivaldi*|*orion*|*zen*)
+      return 0 ;;
+  esac
+  return 1
+}
+
+# Delete each entry of a directory, skipping browser-related ones
+del_contents() {
+  [ -d "$1" ] || return 0
+  find "$1" -mindepth 1 -maxdepth 1 "${@:2}" -print0 |
+    while IFS= read -r -d '' p; do
+      is_browser "$p" && continue
+      del "$p"
+    done
+}
+
+# Browsers must be closed, otherwise deleting their temp files can end sessions
+BROWSERS=("Google Chrome" "Safari" "firefox" "Microsoft Edge" "Arc" "Brave Browser"
+          "Opera" "Vivaldi" "Chromium" "Orion" "zen")
+if [ "$MODE" = "run" ]; then
+  running=()
+  for b in "${BROWSERS[@]}"; do
+    pgrep -xq "$b" && running+=("$b")
+  done
+  if [ "${#running[@]}" -gt 0 ]; then
+    echo "Please quit these browsers first: ${running[*]}" >&2
+    exit 1
+  fi
+fi
+
 echo "Mode: $MODE"
 echo "Free space before:"; df -h / | tail -1
 echo
 
-# 1. User caches (skips Brave, all Apple-owned caches, and CloudKit)
-find ~/Library/Caches -mindepth 1 -maxdepth 1 \
-  ! -iname "BraveSoftware" \
-  ! -iname "com.brave.*" \
-  ! -name "com.apple.*" \
-  ! -name "CloudKit" \
-  -print0 | while IFS= read -r -d '' p; do del "$p"; done
+# 1. User caches (skips browsers, all Apple-owned caches, and CloudKit)
+del_contents ~/Library/Caches ! -name "com.apple.*" ! -name "CloudKit"
 
 # 2. Temp files (guarded so an empty $TMPDIR can never expand to rm -rf *)
 if [ -n "$TMPDIR" ] && [ -d "$TMPDIR" ]; then
-  del "${TMPDIR%/}"/*
+  del_contents "${TMPDIR%/}"
 fi
 
 # 3. Logs and crash reports
@@ -117,7 +150,7 @@ del ~/Library/Logs/DiagnosticReports/*
 del ~/Library/Application\ Support/CrashReporter/*
 
 # 4. Saved window state (apps won't reopen previous windows)
-del ~/Library/Saved\ Application\ State/*
+del_contents ~/Library/Saved\ Application\ State
 
 # 5. Developer tool caches (only if installed)
 command -v brew      >/dev/null && runcmd brew cleanup -s --prune=all
