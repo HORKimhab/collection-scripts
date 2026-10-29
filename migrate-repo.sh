@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Move current repo history to a new GitHub repo.
 # Usage: ./migrate-repo.sh [new-repo-url]
+# alias migrate-repo='bash <(curl -fsSL https://raw.githubusercontent.com/HORKimhab/collection-scripts/refs/heads/main/migrate-repo.sh)'
 
 set -e
 
