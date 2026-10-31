@@ -194,3 +194,67 @@ docker push 460616120572/template-secure-laravel-code:latest
 docker pull 460616120572/template-secure-laravel-code:latest && docker build -t 460616120572/template-secure-laravel-code . && docker run -p 8000:8000 -it 460616120572/template-secure-laravel-code sh
 
 ```
+
+## Tmux: start with 4 panes (2x2)
+
+`tmux.conf` enables mouse, copies to the macOS clipboard, and splits every new session into 4 equal panes.
+
+### Install
+
+```bash
+curl -o ~/.tmux.conf https://raw.githubusercontent.com/HORKimhab/collection-scripts/main/tmux.conf
+
+# Reload if tmux is already running
+tmux source-file ~/.tmux.conf
+```
+
+### Prototype (what you get)
+
+```text
+┌──────────────────────┬──────────────────────┐
+│ pane 0 (active)      │ pane 1               │
+│                      │                      │
+├──────────────────────┼──────────────────────┤
+│ pane 2               │ pane 3               │
+│                      │                      │
+└──────────────────────┴──────────────────────┘
+```
+
+### Usage
+
+```bash
+tmux                    # new session with 4 panes
+tmux new -s work        # named session with 4 panes
+tmux ls                 # list sessions
+tmux attach -t work     # re-attach (layout is kept)
+tmux kill-session -t work
+```
+
+| Keys            | Action                         |
+| --------------- | ------------------------------ |
+| `Ctrl-b` + ←↑→↓ | Move between panes (or click)  |
+| `Ctrl-b q`      | Show pane numbers              |
+| `Ctrl-b z`      | Zoom / unzoom current pane     |
+| `Ctrl-b Space`  | Change layout                  |
+| `Ctrl-b x`      | Close current pane             |
+| `Ctrl-b d`      | Detach (session keeps running) |
+
+### Example: dev session with a command in each pane
+
+```bash
+# Every new session already has 4 panes, so just send a command to each one
+tmux new-session -d -s dev -c ~/personal-project/my-app
+tmux send-keys -t dev:.0 'nvim .' C-m
+tmux send-keys -t dev:.1 'npm run dev' C-m
+tmux send-keys -t dev:.2 'tail -f storage/logs/app.log' C-m
+tmux send-keys -t dev:.3 'git status' C-m
+tmux attach -t dev
+```
+
+```text
+┌──────────────────────┬──────────────────────┐
+│ nvim .               │ npm run dev          │
+├──────────────────────┼──────────────────────┤
+│ tail -f app.log      │ git status           │
+└──────────────────────┴──────────────────────┘
+```
